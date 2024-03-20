@@ -69,6 +69,10 @@ class Task:
         self.finish = 0
         self.period = period
         self.execution_timeline = []
+        self.linked = False
+        self.scheduled = False
+        self.cpu_name = None
+        self.state = 'preemptable'
 
     def generate_critical_sections(self, nesting_factor, all_resources):
         critical_sections_count = random.randint(0, min(8, int(self.execution)))
@@ -91,6 +95,19 @@ class Task:
                 self.execution_timeline[pos + 1] = ('Nested', 1, resource.nested_access)
             else:
                 self.execution_timeline[pos] = ('Critical', 0, resource.resource_id)
+
+    def is_runnable(self):
+        return self.state in ['preemptable', 'non-preemptable']
+
+    def resume(self):
+        self.state = 'preemptable'
+
+    @staticmethod
+    def assign_priorities(tasks):
+        sorted_tasks = sorted(tasks, key=lambda x: (x.deadline, x.id))
+        for priority, task in enumerate(sorted_tasks):
+            task.priority = priority + 1
+        return sorted_tasks
 
     def __repr__(self):
         critical_sections_str = ', '.join([f"{status}({level}, res={chosen_resource})"
@@ -123,6 +140,12 @@ def generate_tasks(num_tasks, u_bar):
     return tasks
 
 
+def GSN_EDF_scheduler(all_tasks, all_processors, all_resources):
+    # Implement the algorithm by iterating over the jobs and processors
+    # Use the states and conditions from your pseudocode
+    pass
+
+
 generated_tasks = generate_tasks(100, 0.5)
 print(generated_tasks[:5])
 resources = create_resources(10)
@@ -134,3 +157,5 @@ for task in generated_tasks[:5]:
     print(task)
 processors = [Processor(i) for i in range(1, 5)]
 print(processors)
+generated_tasks = Task.assign_priorities(generated_tasks)
+GSN_EDF_scheduler(generated_tasks, processors, resources)
