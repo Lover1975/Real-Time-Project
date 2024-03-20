@@ -2,6 +2,27 @@ import numpy as np
 import random
 
 
+class Processor:
+    def __init__(self, processor_id):
+        self.processor_id = processor_id
+        self.is_idle = True
+        self.current_task = None
+
+    def assign_task(self, assigned_task):
+        self.current_task = assigned_task
+        self.is_idle = False
+
+    def complete_task(self):
+        self.current_task = None
+        self.is_idle = True
+
+    def __repr__(self):
+        if self.is_idle:
+            return f"Processor {self.processor_id} is idle"
+        else:
+            return f"Processor {self.processor_id} is executing {self.current_task.id}"
+
+
 class CriticalSection:
     def __init__(self, duration, nested_level):
         self.duration = duration
@@ -27,14 +48,15 @@ class Resource:
 
 
 def create_resources(num_resources):
-    resources = [Resource(i + 1, random.choice([True, False])) for i in range(num_resources)]
-    for resource in resources:
+    created_resources = [Resource(i + 1, random.choice([True, False])) for i in range(num_resources)]
+    for resource in created_resources:
         if resource.nestable:
-            potential_resources = [res for res in resources if res != resource and res.nested_access]
+            potential_resources = [choose_res for choose_res in created_resources
+                                   if choose_res != resource and choose_res.nestable]
             if potential_resources:
                 accessed_resource = random.choice(potential_resources)
                 resource.nested_access = accessed_resource
-    return resources
+    return created_resources
 
 
 class Task:
@@ -48,26 +70,33 @@ class Task:
         self.period = period
         self.execution_timeline = []
 
-    def generate_critical_sections(self, f):
-        execution_as_int = int(self.execution)
-        critical_sections_count = random.randint(0, min(8, execution_as_int))
-        print(critical_sections_count)
-        critical_sections_positions = random.sample(range(execution_as_int), critical_sections_count)
-        for i in range(execution_as_int):
-            if i in critical_sections_positions:
-                if random.random() < 2 * f * (1 - f):
-                    nesting_level = 1
-                elif random.random() < f ** 2:
-                    nesting_level = 2
-                else:
-                    nesting_level = 0
-                self.execution_timeline.append(('Critical', nesting_level))
+    def generate_critical_sections(self, nesting_factor, all_resources):
+        critical_sections_count = random.randint(0, min(8, int(self.execution)))
+        self.execution_timeline = [('Non-Critical', 0, None)] * int(self.execution)
+        critical_sections_positions = random.sample(range(int(self.execution)), critical_sections_count)
+
+        for pos in critical_sections_positions:
+            nested_probability = random.random()
+            resource = random.choice(all_resources)
+            if (nested_probability < nesting_factor ** 2 and (pos + 2 < int(self.execution))
+                    and resource.nestable and resource.nested_access):
+                for q in all_resources:
+                    if q.resource_id == resource.nested_access and q.nested_access:
+                        self.execution_timeline[pos] = ('Critical', 2, resource.resource_id)
+                        self.execution_timeline[pos + 1] = ('Nested', 2, resource.nested_access)
+                        self.execution_timeline[pos + 2] = ('Nested', 2, q.nested_access)
+            elif (nested_probability < 2 * nesting_factor * (1 - nesting_factor) and (pos + 1 < int(self.execution))
+                  and resource.nestable and resource.nested_access):
+                self.execution_timeline[pos] = ('Critical', 1, resource.resource_id)
+                self.execution_timeline[pos + 1] = ('Nested', 1, resource.nested_access)
             else:
-                self.execution_timeline.append(('Non-Critical', 0))
+                self.execution_timeline[pos] = ('Critical', 0, resource.resource_id)
 
     def __repr__(self):
-        return (f"Task(id={self.id}, critical_sections={self.execution_timeline},\n"
-                f"and Task(id={self.id}, arrival={self.arrival}, execution={self.execution}, deadline={self.deadline})")
+        critical_sections_str = ', '.join([f"{status}({level}, res={chosen_resource})"
+                                           for status, level, chosen_resource in self.execution_timeline])
+        return (f"Task(id={self.id}, execution_timeline=[{critical_sections_str}])\n and"
+                f"Task(id={self.id}, arrival={self.arrival}, execution={self.execution}, deadline={self.deadline})")
 
 
 def UUniFast(n, u_bar):
@@ -100,7 +129,8 @@ resources = create_resources(10)
 for res in resources:
     print(res)
 f = 0.05
-
 for task in generated_tasks[:5]:
-    task.generate_critical_sections(f)
+    task.generate_critical_sections(f, resources)
     print(task)
+processors = [Processor(i) for i in range(1, 5)]
+print(processors)
