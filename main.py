@@ -7,6 +7,7 @@ class Processor:
         self.processor_id = processor_id
         self.is_idle = True
         self.current_task = None
+        self.linked_task = None
 
     def assign_task(self, assigned_task):
         self.current_task = assigned_task
@@ -68,6 +69,9 @@ class Task:
         self.linked = False
         self.scheduled = False
         self.cpu_name = None
+        self.is_finished = False
+        self.priority = None
+        self.current_execution = 0
         self.state = 'preemptable'
 
     def check_valid_critical_assignment(self, position_index, nesting_degree_space):
@@ -114,6 +118,8 @@ class Task:
         sorted_tasks = sorted(tasks, key=lambda x: (x.deadline, x.id))
         for priority, c_task in enumerate(sorted_tasks):
             c_task.priority = priority + 1
+        # for q in sorted_tasks:
+        #    print(q.priority)
         return sorted_tasks
 
     def __repr__(self):
@@ -148,10 +154,67 @@ def generate_tasks(num_tasks, u_bar):
     return tasks
 
 
+def find_ready_executing_tasks(all_tasks, timer, all_processors):
+    print("hi")
+    ready_tasks = []
+    processors_tasks = []
+    for i in all_processors:
+        if i is not None:
+            processors_tasks.append(i.current_task)
+    for each_task in all_tasks:
+        if each_task.arrival <= timer and (not each_task.is_finished):
+            if each_task not in processors_tasks:
+                ready_tasks.append(each_task)
+    return ready_tasks, processors_tasks
+
+
+def update_tasks_processors_resources(all_processors, all_resources):
+    for i in all_processors:
+        if i.current_task.is_finished:
+            i.complete_task()
+
+
+def assign_and_execute(all_processors, all_resources, four_high_priority_tasks):
+    for i in all_processors:
+        if i.is_idle:
+            i.assign_task(four_high_priority_tasks[0])
+            four_high_priority_tasks[0].linked = True
+            four_high_priority_tasks[0].scheduled = True
+            four_high_priority_tasks = four_high_priority_tasks[1:4]
+            i.current_task.current_execution += 1
+
+        elif not i.is_idle and i.current_task.state == "preemptable":
+            i.current_task.linked = False
+            i.current_task.scheduled = False
+            i.assign_task(four_high_priority_tasks[0])
+            four_high_priority_tasks[0].linked = True
+            four_high_priority_tasks[0].scheduled = True
+            four_high_priority_tasks = four_high_priority_tasks[1:4]
+            i.current_task.current_execution += 1
+
+        elif not i.is_idle and i.current_task.state == "non-preemptable":
+            i.current_task.linked = False
+            four_high_priority_tasks[0].linked = True
+            i.current_task.current_execution += 1
+
+    for i in all_processors:
+        if i.current_task.current_execution == i.current_task.execution:
+            i.current_task.is_finished = True
+
+
 def GSN_EDF_scheduler(all_tasks, all_processors, all_resources):
-    # Implement the algorithm by iterating over the jobs and processors
-    # Use the states and conditions from your pseudocode
-    pass
+    clock = 0
+    while True:
+        ready_tasks, processors_tasks = find_ready_executing_tasks(all_tasks, clock, all_processors)
+        four_high_priority_tasks = sorted(ready_tasks, key=lambda x: x.priority)[0:4]
+        for q in four_high_priority_tasks:
+            print(q.priority)
+        print(four_high_priority_tasks)
+        update_tasks_processors_resources(all_processors, all_resources)
+        assign_and_execute(all_processors, all_resources, four_high_priority_tasks)
+        clock += 1
+        if clock == 20:
+            break
 
 
 generated_tasks = generate_tasks(100, 0.5)
