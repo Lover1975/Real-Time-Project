@@ -69,7 +69,7 @@ class Task:
         self.arrival = arrival
         self.execution = execution
         self.deadline = deadline
-        self.start = 0
+        self.start = None
         self.finish = 0
         self.period = period
         self.execution_timeline = []
@@ -132,9 +132,9 @@ class Task:
     def __repr__(self):
         critical_sections_str = ', '.join([f"{status}({level}, res={chosen_resource})"
                                            for status, level, chosen_resource in self.execution_timeline])
-        return (f"Task(id={self.id}, execution_timeline=[{critical_sections_str}])\n and "
+        return (f"Task(id={self.id}, priority={self.priority}, execution_timeline=[{critical_sections_str}])\n and "
                 f"arrival={self.arrival}, execution={self.execution}, deadline={self.deadline}), "
-                f"start={self.start}, finish={self.finish}")
+                f"start={self.start}, finish={self.finish}\n")
 
 
 def UUniFast(n, u_bar):
@@ -153,10 +153,10 @@ def generate_tasks(num_tasks, u_bar):
     utilizations = UUniFast(num_tasks, u_bar)
     tasks = []
     for i in range(num_tasks):
-        arrival = np.random.randint(0, 300)
+        arrival = np.random.randint(0, 100)
         max_execution_time = 500
         execution = np.ceil(utilizations[i] * max_execution_time)
-        buffer = np.random.randint(5, 250)
+        buffer = np.random.randint(5, 150)
         deadline = arrival + execution + buffer
         tasks.append(Task(f"Task_{i + 1}", arrival, execution, deadline))
     return tasks
@@ -211,6 +211,7 @@ def handle_critical_sections(all_processors, all_locks):
                         print(f"{i.current_task.id} can take the lock {j.id}.")
                         j.is_acquired = True
                         j.current_task = i.current_task
+                        i.current_task.state = "non-preemptable"
                         i.current_task.current_execution += 1
                         break
                     elif j.id == group_lock and j.is_acquired and j.current_task.id != i.current_task.id:
@@ -218,7 +219,7 @@ def handle_critical_sections(all_processors, all_locks):
                         j.queued_tasks.put(i.current_task)
                         i.current_task.state = "non-preemptable"
                         break
-                    else:
+                    elif j.id == group_lock and j.is_acquired and j.current_task.id == i.current_task.id:
                         i.current_task.current_execution += 1
                         break
                 print(f"task et after everything: {i.current_task.current_execution}")
@@ -231,7 +232,8 @@ def assign_and_execute(all_processors, four_high_priority_tasks, all_locks, time
                 i.assign_task(four_high_priority_tasks[0])
                 four_high_priority_tasks[0].linked = True
                 four_high_priority_tasks[0].scheduled = True
-                four_high_priority_tasks[0].start = timer
+                if four_high_priority_tasks[0].start is None:
+                    four_high_priority_tasks[0].start = timer
                 four_high_priority_tasks = four_high_priority_tasks[1:]
                 # i.current_task.current_execution += 1
     for j in all_processors:
@@ -242,7 +244,8 @@ def assign_and_execute(all_processors, four_high_priority_tasks, all_locks, time
                 j.assign_task(four_high_priority_tasks[0])
                 four_high_priority_tasks[0].linked = True
                 four_high_priority_tasks[0].scheduled = True
-                four_high_priority_tasks[0].start = timer
+                if four_high_priority_tasks[0].start is None:
+                    four_high_priority_tasks[0].start = timer
                 four_high_priority_tasks = four_high_priority_tasks[1:]
                 # i.current_task.current_execution += 1
     for q in all_processors:
@@ -287,7 +290,7 @@ def GSN_EDF_scheduler(all_tasks, all_processors, all_locks):
         # update_tasks_processors_resources(all_processors, all_locks, clock)
         assign_and_execute(all_processors, four_high_priority_tasks, all_locks, clock)
         clock += 1
-        #if clock == 50:
+        #if clock == 80:
         #    break
 
 
@@ -307,5 +310,10 @@ print("Entering processing:")
 GSN_EDF_scheduler(generated_tasks, processors, locks)
 print()
 print("End of processing:\n")
-for w in generated_tasks:
-    print(w)
+# Assuming 'generated_tasks' is a list of Task instances that have an 'arrival' attribute
+sorted_tasks_by_arrival = sorted(generated_tasks, key=lambda taskk: taskk.arrival)
+
+# Printing sorted tasks
+for task in sorted_tasks_by_arrival:
+    print(task)
+
