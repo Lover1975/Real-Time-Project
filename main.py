@@ -3,6 +3,8 @@ import random
 import queue
 import matplotlib.pyplot as plt
 import sys
+import json
+import os
 
 
 class Processor:
@@ -24,6 +26,12 @@ class Processor:
     def add_usage(self, usage_tuple):
         self.time_line_utilization.append(usage_tuple)
 
+    def to_dict(self):
+        return {'processor_id': self.processor_id, 'is_idle': self.is_idle,
+                'current_task': self.current_task.id if self.current_task else None,
+                'linked_task': self.linked_task.id if self.linked_task else None,
+                'time_line_utilization': self.time_line_utilization}
+
     def __repr__(self):
         if self.is_idle:
             return f"Processor {self.processor_id} is idle"
@@ -42,6 +50,14 @@ class Lock:
         self.is_acquired = False
         self.current_task = None
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'current_task': self.current_task.id if self.current_task else None,
+            'is_acquired': self.is_acquired,
+            'queued_tasks': [task.id for task in list(self.queued_tasks.queue)]
+        }
+
     def __repr__(self):
         return f"Lock ID is {self.id} and its queued tasks are:\n{self.queued_tasks}"
 
@@ -51,6 +67,10 @@ class Resource:
         self.resource_id = resource_id
         self.nestable = nestable
         self.nested_access = None
+
+    def to_dict(self):
+        return {'resource_id': self.resource_id, 'nestable': self.nestable,
+                'nested_access': [res.resource_id for res in self.nested_access] if self.nested_access else None}
 
     def __repr__(self):
         if self.nestable and self.nested_access:
@@ -95,31 +115,35 @@ class Task:
         return True
 
     def generate_critical_sections(self, nesting_factor):
-        critical_sections_count = random.randint(0, 8)
-        self.execution_timeline = [('Non-Critical', 0, "None")] * int(self.execution)
-        if critical_sections_count > self.execution:
-            critical_sections_count = int(self.execution)
-        critical_sections_positions = random.sample(range(int(self.execution)), critical_sections_count)
-        # print(critical_sections_positions)
-        for i in range(critical_sections_count):
-            for pos in critical_sections_positions:
-                nested_probability = random.random()
-                if (nested_probability < nesting_factor ** 2 and self.execution >= pos + 4
-                        and self.check_valid_critical_assignment(pos, 4)):
-                    self.execution_timeline[pos] = ('Critical', 2, "group1")
-                    self.execution_timeline[pos + 1] = ('Critical', 2, "group1")
-                    self.execution_timeline[pos + 2] = ('Critical', 2, "group1")
-                    self.execution_timeline[pos + 3] = ('Critical', 2, "group1")
-                elif nested_probability < 2 * nesting_factor * (1 - nesting_factor) and self.execution >= pos + 3 \
-                        and self.check_valid_critical_assignment(pos, 3):
-                    self.execution_timeline[pos] = ('Critical', 1, "group2")
-                    self.execution_timeline[pos + 1] = ('Critical', 1, "group2")
-                    self.execution_timeline[pos + 2] = ('Critical', 1, "group2")
-                elif self.execution >= pos + 2 \
-                        and self.check_valid_critical_assignment(pos, 2):
-                    chosen_group = random.randint(5, 9)
-                    self.execution_timeline[pos] = ('Critical', 0, f"group{chosen_group}")
-                    self.execution_timeline[pos + 1] = ('Critical', 0, f"group{chosen_group}")
+        if int(self.execution) <= 2:
+            # If execution time is 1 or 2, there cannot be a critical section in the middle.
+            self.execution_timeline = [('Non-Critical', 0, "None")] * int(self.execution)
+        else:
+            critical_sections_count = random.randint(0, 8)
+            self.execution_timeline = [('Non-Critical', 0, "None")] * int(self.execution)
+            if critical_sections_count > self.execution - 2:
+                critical_sections_count = int(self.execution) - 2
+            critical_sections_positions = random.sample(range(1, int(self.execution) - 1), critical_sections_count)
+            # print(critical_sections_positions)
+            for i in range(critical_sections_count):
+                for pos in critical_sections_positions:
+                    nested_probability = random.random()
+                    if (nested_probability < nesting_factor ** 2 and self.execution - 1 >= pos + 4
+                            and self.check_valid_critical_assignment(pos, 4)):
+                        self.execution_timeline[pos] = ('Critical', 2, "group1")
+                        self.execution_timeline[pos + 1] = ('Critical', 2, "group1")
+                        self.execution_timeline[pos + 2] = ('Critical', 2, "group1")
+                        self.execution_timeline[pos + 3] = ('Critical', 2, "group1")
+                    elif nested_probability < 2 * nesting_factor * (1 - nesting_factor) and self.execution - 1 >= pos + 3 \
+                            and self.check_valid_critical_assignment(pos, 3):
+                        self.execution_timeline[pos] = ('Critical', 1, "group2")
+                        self.execution_timeline[pos + 1] = ('Critical', 1, "group2")
+                        self.execution_timeline[pos + 2] = ('Critical', 1, "group2")
+                    elif self.execution - 1 >= pos + 2 \
+                            and self.check_valid_critical_assignment(pos, 2):
+                        chosen_group = random.randint(5, 9)
+                        self.execution_timeline[pos] = ('Critical', 0, f"group{chosen_group}")
+                        self.execution_timeline[pos + 1] = ('Critical', 0, f"group{chosen_group}")
 
     def is_runnable(self):
         return self.state in ['preemptable', 'non-preemptable']
@@ -135,6 +159,24 @@ class Task:
         # for q in sorted_tasks:
         #    print(q.priority)
         return sorted_tasks
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'arrival': self.arrival,
+            'execution': self.execution,
+            'deadline': self.deadline,
+            'period': self.period,
+            'execution_timeline': self.execution_timeline,
+            'linked': self.linked,
+            'scheduled': self.scheduled,
+            'cpu_name': self.cpu_name,
+            'is_finished': self.is_finished,
+            'priority': self.priority,
+            'current_execution': self.current_execution,
+            'state': self.state,
+            'current_lock_group': self.current_lock_group if self.current_lock_group is None else self.current_lock_group.id
+        }
 
     def __repr__(self):
         critical_sections_str = ', '.join([f"{status}({level}, res={chosen_resource})"
@@ -208,7 +250,7 @@ def handle_critical_sections(all_processors, all_locks, timer):
                 print(f"{i.current_task.id} is not critical now.")
                 i.current_task.current_execution += 1
                 i.current_task.state = "preemptable"
-                i.add_usage((f"{i.current_task.id[4:]}", timer, timer + 1))
+                i.add_usage((f"{i.current_task.id[5:]}", timer, timer + 1))
                 for j in all_locks:
                     if (j.current_task is not None) and j.current_task.id == i.current_task.id:
                         j.free_lock()
@@ -225,7 +267,7 @@ def handle_critical_sections(all_processors, all_locks, timer):
                             i.current_task.state = "non-preemptable"
                             i.current_task.current_execution += 1
                             i.current_task.current_lock_group = j.id
-                            i.add_usage((f"{i.current_task.id[4:]}", timer, timer + 1))
+                            i.add_usage((f"{i.current_task.id[5:]}", timer, timer + 1))
                             break
                         else:
                             for w in all_locks:
@@ -281,7 +323,8 @@ def assign_and_execute(all_processors, four_high_priority_tasks, all_locks, time
                 # i.current_task.current_execution += 1
     for j in all_processors:
         if len(four_high_priority_tasks) >= 1:
-            if not j.is_idle and j.current_task.state == "preemptable":
+            if (not j.is_idle and j.current_task.state == "preemptable"
+                    and four_high_priority_tasks[0].priority > j.current_task.priority):
                 j.current_task.linked = False
                 j.current_task.scheduled = False
                 j.assign_task(four_high_priority_tasks[0])
@@ -293,7 +336,8 @@ def assign_and_execute(all_processors, four_high_priority_tasks, all_locks, time
                 # i.current_task.current_execution += 1
     for q in all_processors:
         if len(four_high_priority_tasks) >= 1:
-            if not q.is_idle and q.current_task.state == "non-preemptable":
+            if (not q.is_idle and q.current_task.state == "non-preemptable"
+                    and four_high_priority_tasks[0].priority > q.current_task.priority):
                 q.current_task.linked = False
                 four_high_priority_tasks[0].linked = True
                 # i.current_task.current_execution += 1
@@ -405,8 +449,23 @@ def GSN_EDF_scheduler(all_tasks, all_processors, all_locks):
         # update_tasks_processors_resources(all_processors, all_locks, clock)
         assign_and_execute(all_processors, four_high_priority_tasks, all_locks, clock)
         clock += 1
-        if clock == 150:
-            break
+        #if clock == 150:
+        #    break
+
+
+def save_to_json(processors_p, locks_p, tasks_p, resources_p, filename='data.json'):
+    data = {
+        'processors': [p.to_dict() for p in processors_p],
+        'resources': [r.to_dict() for r in resources_p],
+        'locks': [l.to_dict() for l in locks_p],
+        'tasks': [t.to_dict() for t in tasks_p]
+    }
+    try:
+        with open(filename, 'w') as fq:
+            json.dump(data, fq, indent=4)
+        print(f"Data successfully saved to {filename}")
+    except Exception as e:
+        print(f"An error occurred while saving data to {filename}: {e}")
 
 
 generated_tasks = generate_tasks(100, 0.5)
@@ -456,6 +515,7 @@ with open('scheduling_results.txt', 'w') as output_file:
     for o in processors:
         print(o.time_line_utilization)
 
+    save_to_json(processors, locks, generated_tasks, resources)
     # If depict_the_scheduling() also prints to standard output, follow the same pattern of redirection
     sys.stdout = output_file
     depict_the_scheduling(processors)
