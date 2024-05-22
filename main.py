@@ -4,7 +4,6 @@ import queue
 import matplotlib.pyplot as plt
 import sys
 import json
-import os
 
 
 class Processor:
@@ -56,7 +55,7 @@ class Lock:
             'id': self.id,
             'current_task': self.current_task.id if self.current_task else None,
             'is_acquired': self.is_acquired,
-            'queued_tasks': [task.id for task in list(self.queued_tasks.queue)]
+            'queued_tasks': [task_list.id for task_list in list(self.queued_tasks.queue)]
         }
 
     def __repr__(self):
@@ -133,8 +132,8 @@ class Task:
                         self.execution_timeline[pos + 1] = ('Critical', 2, "group1")
                         self.execution_timeline[pos + 2] = ('Critical', 2, "group1")
                         self.execution_timeline[pos + 3] = ('Critical', 2, "group1")
-                    elif nested_probability < 2 * nesting_factor * (1 - nesting_factor) and self.execution - 1 >= pos + 3 \
-                            and self.check_valid_critical_assignment(pos, 3):
+                    elif (nested_probability < 2 * nesting_factor * (1 - nesting_factor) and
+                          self.execution - 1 >= pos + 3 and self.check_valid_critical_assignment(pos, 3)):
                         self.execution_timeline[pos] = ('Critical', 1, "group2")
                         self.execution_timeline[pos + 1] = ('Critical', 1, "group2")
                         self.execution_timeline[pos + 2] = ('Critical', 1, "group2")
@@ -174,7 +173,8 @@ class Task:
             'priority': self.priority,
             'current_execution': self.current_execution,
             'state': self.state,
-            'current_lock_group': self.current_lock_group if self.current_lock_group is None else self.current_lock_group.id
+            'current_lock_group': self.current_lock_group
+            if self.current_lock_group is None else self.current_lock_group.id
         }
 
     def __repr__(self):
@@ -197,14 +197,14 @@ def UUniFast(n, u_bar):
 
 
 def generate_tasks(num_tasks, u_bar):
-    utilizations = UUniFast(num_tasks, u_bar)
+    utilization = UUniFast(num_tasks, u_bar)
     tasks = []
     utilization_second_run = UUniFast(num_tasks, 0.75)
     tasks_second_run = []
     for i in range(num_tasks):
         arrival = np.random.randint(0, 100)
         max_execution_time = 1300
-        execution = np.ceil(utilizations[i] * max_execution_time)
+        execution = np.ceil(utilization[i] * max_execution_time)
         execution_second_run = np.ceil(utilization_second_run[i] * max_execution_time)
         buffer = np.random.randint(5, 150)
         deadline = arrival + execution + buffer
@@ -230,7 +230,6 @@ def find_ready_executing_tasks(all_tasks, timer, all_processors):
 def update_tasks_processors_resources(all_processors, all_locks, timer):
     for i in all_processors:
         if (i.current_task is not None) and i.current_task.is_finished:
-            # print(f"Inside utpr: {i.current_task}")
             i.current_task.linked = False
             i.current_task.scheduled = False
             for each_lock in all_locks:
@@ -239,12 +238,11 @@ def update_tasks_processors_resources(all_processors, all_locks, timer):
                     i.current_task.current_lock_group = None
             i.current_task.state = "preemptable"
             i.current_task.finish = timer + 1
-            print(f"Inside utpr: {i.current_task}")
+            print(f"Inside UTPR: {i.current_task}")
             i.complete_task()
 
 
 def peek(queue_p):
-    print("fgdgdfgdf")
     print(queue_p.qsize())
     if not queue_p.empty():
         return queue_p.queue[0]
@@ -286,9 +284,9 @@ def handle_critical_sections(all_processors, all_locks, timer):
                                 i.current_task.current_execution += 1
                                 i.current_task.current_lock_group = j.id
                                 i.add_usage((f"{i.current_task.id[5:]}", timer, timer + 1))
-                                print(f"mammammaa {j.main_queued_tasks.qsize()} and {j.id}")
+                                print(f"Inside checking locks {j.main_queued_tasks.qsize()} and {j.id}")
                                 j.main_queued_tasks.get()
-                                print(f"mammammaa {j.main_queued_tasks.qsize()} and {j.id}")
+                                print(f"Inside Checking locks after dequeue {j.main_queued_tasks.qsize()} and {j.id}")
                             else:
                                 j.queued_tasks.put(i.current_task)
                                 if i.current_task not in list(j.main_queued_tasks.queue):
@@ -315,9 +313,11 @@ def handle_critical_sections(all_processors, all_locks, timer):
                                         i.current_task.current_execution += 1
                                         i.current_task.current_lock_group = j.id
                                         i.add_usage((f"{i.current_task.id[4:]}", timer, timer + 1))
-                                        print(f"mammammaa {j.main_queued_tasks.qsize()} and {j.id}")
+                                        print(f"Inside checking locks second condition"
+                                              f" {j.main_queued_tasks.qsize()} and {j.id}")
                                         j.main_queued_tasks.get()
-                                        print(f"mammammaa {j.main_queued_tasks.qsize()} and {j.id}")
+                                        print(f"Inside Checking locks after dequeue"
+                                              f" {j.main_queued_tasks.qsize()} and {j.id}")
                                     else:
                                         j.queued_tasks.put(i.current_task)
                                         if i.current_task not in list(j.main_queued_tasks.queue):
@@ -373,7 +373,6 @@ def assign_and_execute(all_processors, four_high_priority_tasks, all_locks, time
         if len(four_high_priority_tasks) >= 1:
             if (not j.is_idle and j.current_task.state == "preemptable"
                     and four_high_priority_tasks[0].priority < j.current_task.priority):
-                print(f"ghabl bya berim koooh {j.current_task.id}")
                 j.current_task.linked = False
                 j.current_task.scheduled = False
                 j.assign_task(four_high_priority_tasks[0])
@@ -382,7 +381,6 @@ def assign_and_execute(all_processors, four_high_priority_tasks, all_locks, time
                 if four_high_priority_tasks[0].start is None:
                     four_high_priority_tasks[0].start = timer
                 four_high_priority_tasks = four_high_priority_tasks[1:]
-                print(f"bya berim koooh {j.current_task.id}")
                 # i.current_task.current_execution += 1
     for q in all_processors:
         if len(four_high_priority_tasks) >= 1:
@@ -424,7 +422,7 @@ def depict_the_scheduling(all_processors):
     list_2 = []
     list_3 = []
     list_4 = []
-    for u_list in processors:
+    for u_list in all_processors:
         if u_list.processor_id == 1:
             list_1 = u_list.time_line_utilization
         if u_list.processor_id == 2:
@@ -458,9 +456,7 @@ def depict_the_scheduling(all_processors):
     gnt.invert_yaxis()
 
     for i, (processor, tasks) in enumerate(processor_tasks.items(), 1):
-        print("hello")
         print(tasks)
-        print("bbyr")
         for each_task, start, end in tasks:
             if each_task != 'idle':
                 gnt.broken_barh([(start, end - start)], (i - 0.4, 0.8), facecolors='skyblue', edgecolors='black')
@@ -499,7 +495,7 @@ def save_to_json(processors_p, locks_p, tasks_p, resources_p, filename='data.jso
     data = {
         'processors': [p.to_dict() for p in processors_p],
         'resources': [r.to_dict() for r in resources_p],
-        'locks': [l.to_dict() for l in locks_p],
+        'locks': [q.to_dict() for q in locks_p],
         'tasks': [t.to_dict() for t in tasks_p]
     }
     try:
@@ -512,20 +508,19 @@ def save_to_json(processors_p, locks_p, tasks_p, resources_p, filename='data.jso
 
 def calculate_qos(tasks):
     qos_data = []
-    for taskss in tasks:
-        lateness = taskss.finish - taskss.deadline
+    for tasks_list in tasks:
+        lateness = tasks_list.finish - tasks_list.deadline
         if lateness <= 0:
             qos = 100
         else:
             qos = max(0, 100 - lateness * 5)
-        qos_data.append((taskss.id, qos))
+        qos_data.append((tasks_list.id, qos))
     return qos_data
 
 
 def plot_qos(qos_data, filename):
     task_ids = [data[0] for data in qos_data]
     qos_values = [data[1] for data in qos_data]
-
     plt.figure(figsize=(10, 5))
     plt.bar(task_ids, qos_values, color='green')
     plt.xlabel('Task IDs')
@@ -536,6 +531,36 @@ def plot_qos(qos_data, filename):
     plt.tight_layout()
     plt.savefig(filename)
     plt.show()
+
+
+def run_scheduler_and_save_results(tasks, processors_list, locks_list,
+                                   resources_list, output_file_name, qos_output_image, json_output_file):
+    with open(output_file_name, 'w') as output_file:
+        print("\nEntering processing:", file=output_file)
+        original_stdout = sys.stdout
+        sys.stdout = output_file
+        GSN_EDF_scheduler(tasks, processors_list, locks_list)
+        sys.stdout = original_stdout
+        print("\nEnd of processing:\n", file=output_file)
+
+        sorted_tasks_by_arrival = sorted(tasks, key=lambda task_list: task_list.arrival)
+
+        print(len(sorted_tasks_by_arrival), file=output_file)
+        print(len(sorted_tasks_by_arrival))
+        for task_lists in sorted_tasks_by_arrival:
+            print(task_lists, file=output_file)
+            print(task_lists)
+        output_file.flush()
+
+        for processor in processors_list:
+            print(processor.time_line_utilization)
+
+        save_to_json(processors_list, locks_list, tasks, resources_list, json_output_file)
+        qos_data = calculate_qos(tasks)
+        plot_qos(qos_data, qos_output_image)
+        sys.stdout = output_file
+        depict_the_scheduling(processors_list)
+        sys.stdout = original_stdout
 
 
 generated_tasks, generated_tasks_second_run = generate_tasks(100, 0.5)
@@ -554,62 +579,8 @@ generated_tasks_second_run = Task.assign_priorities(generated_tasks_second_run)
 locks = create_lock()
 locks_second_run = create_lock()
 
-with open('scheduling_results.txt', 'w') as output_file:
-    print("\nEntering processing:", file=output_file)
-    # Assuming GSN_EDF_scheduler() prints its processing output, temporarily redirect standard output to the file
-    original_stdout = sys.stdout  # Save a reference to the original standard output
-    sys.stdout = output_file  # Redirect standard output to the file
-    GSN_EDF_scheduler(generated_tasks, processors, locks)
-    sys.stdout = original_stdout  # Reset standard output to its original value
-    print("\nEnd of processing:\n", file=output_file)
-
-    # Assuming 'generated_tasks' is a list of Task instances that have an 'arrival' attribute
-    sorted_tasks_by_arrival = sorted(generated_tasks, key=lambda taskk: taskk.arrival)
-
-    # Printing sorted tasks
-    print(len(sorted_tasks_by_arrival), file=output_file)
-    print(len(sorted_tasks_by_arrival))
-    for task in sorted_tasks_by_arrival:
-        print(task, file=output_file)
-        print(task)
-    output_file.flush()
-
-    for o in processors:
-        print(o.time_line_utilization)
-
-    save_to_json(processors, locks, generated_tasks, resources)
-    qos_data = calculate_qos(generated_tasks)
-    plot_qos(qos_data, 'qos_first_run.png')
-    sys.stdout = output_file
-    depict_the_scheduling(processors)
-    sys.stdout = original_stdout
-
-with open('scheduling_results_2.txt', 'w') as output_file:
-    print("\nEntering processing:", file=output_file)
-    # Assuming GSN_EDF_scheduler() prints its processing output, temporarily redirect standard output to the file
-    original_stdout = sys.stdout  # Save a reference to the original standard output
-    sys.stdout = output_file  # Redirect standard output to the file
-    GSN_EDF_scheduler(generated_tasks_second_run, processors_second_run, locks_second_run)
-    sys.stdout = original_stdout  # Reset standard output to its original value
-    print("\nEnd of processing:\n", file=output_file)
-
-    # Assuming 'generated_tasks' is a list of Task instances that have an 'arrival' attribute
-    sorted_tasks_by_arrival = sorted(generated_tasks_second_run, key=lambda taskkk: taskkk.arrival)
-
-    # Printing sorted tasks
-    print(len(sorted_tasks_by_arrival), file=output_file)
-    print(len(sorted_tasks_by_arrival))
-    for task in sorted_tasks_by_arrival:
-        print(task, file=output_file)
-        print(task)
-    output_file.flush()
-
-    for o in processors_second_run:
-        print(o.time_line_utilization)
-
-    save_to_json(processors_second_run, locks_second_run, generated_tasks_second_run, resources_second_run, "datass.json")
-    qos_data_second_run = calculate_qos(generated_tasks_second_run)
-    plot_qos(qos_data_second_run, 'qos_second_run.png')
-    sys.stdout = output_file
-    depict_the_scheduling(processors_second_run)
-    sys.stdout = original_stdout
+run_scheduler_and_save_results(generated_tasks, processors, locks, resources,
+                               'scheduling_results.txt', 'qos_first_run.png', 'data.json')
+run_scheduler_and_save_results(generated_tasks_second_run, processors_second_run,
+                               locks_second_run, resources_second_run,
+                               'scheduling_results_2.txt', 'qos_second_run.png', 'datass.json')
